@@ -1,0 +1,12 @@
+version: 2
+project_name: osb
+builds:
+  - main: ./cmd/osb
+    binary: osb
+    ldflags:
+      - -s -w -X github.com/ollama-switchboard/ollama-switchboard/internal/version.Version={{.Version}} -X github.com/ollama-switchboard/ollama-switchboard/internal/version.CommitSHA={{.Commit}} -X github.com/ollama-switchboard/ollama-switchboard/internal/version.BuildDate={{.Date}}
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
