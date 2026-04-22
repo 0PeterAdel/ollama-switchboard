@@ -1,0 +1,16 @@
+version: 1
+listen_address: 127.0.0.1:11434
+admin_address: 127.0.0.1:11439
+ui_address: 127.0.0.1:11440
+local_upstream: http://127.0.0.1:11435
+routing:
+  policy: auto
+  stream_mode: safe
+  cloud_suffix: [":cloud"]
+retry:
+  max_attempts: 3
+  attempt_timeout: 60s
+  backoff_base: 300ms
+  backoff_max: 3s
+  cooldown_duration: 45s
+upstreams: []
