@@ -132,6 +132,7 @@ func (m *Manager) Replace(cfgs []config.UpstreamConfig) {
 		m.rr = 0
 	}
 }
+
 func (m *Manager) FindByNameOrID(s string) *RuntimeUpstream {
 	m.mu.Lock()
 	defer m.mu.Unlock()

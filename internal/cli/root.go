@@ -129,7 +129,17 @@ func runStatus(path string, args []string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.Get("http://" + cfg.AdminAddress + "/admin/status")
+	req, _ := http.NewRequest(http.MethodGet, "http://"+cfg.AdminAddress+"/admin/status", nil)
+	if cfg.Security.AdminTokenRequired {
+		t := cfg.Security.AdminToken
+		if t == "" {
+			t = os.Getenv("OSB_ADMIN_TOKEN")
+		}
+		if t != "" {
+			req.Header.Set("X-OSB-Admin-Token", t)
+		}
+	}
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
 	if err != nil {
 		fmt.Println("daemon: not running")
 		return nil

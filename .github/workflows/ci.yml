@@ -2,6 +2,7 @@ name: CI
 on:
   push:
   pull_request:
+
 jobs:
   test:
     strategy:
@@ -14,4 +15,5 @@ jobs:
         with:
           go-version: '1.23'
       - run: go test ./...
+      - run: go vet ./...
       - run: go build ./cmd/osb
