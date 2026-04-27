@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -42,7 +43,7 @@ func Run(args []string) error {
 	case "list":
 		return runList(cfgPath)
 	case "doctor":
-		return runDoctor()
+		return runDoctor(cfgPath)
 	case "chat":
 		return runChat(cfgPath, args[1:])
 	case "logs":
@@ -60,8 +61,7 @@ func Run(args []string) error {
 		fmt.Println("Restart not wired in v0.1; use stop/start.")
 		return nil
 	case "reload":
-		fmt.Println("Reload not wired in v0.1; restart daemon.")
-		return nil
+		return runReload(cfgPath)
 	case "config":
 		b, err := os.ReadFile(cfgPath)
 		if err != nil {
@@ -89,6 +89,7 @@ func Run(args []string) error {
 func printHelp() {
 	fmt.Println(`osb commands: help, setup, serve, status, add, remove, list, doctor, chat, logs, version, start, stop, restart, reload, config, enable, disable, ui, uninstall`)
 }
+
 func has(args []string, k string) bool {
 	for _, a := range args {
 		if a == k {
@@ -97,6 +98,7 @@ func has(args []string, k string) bool {
 	}
 	return false
 }
+
 func val(args []string, k string) string {
 	for i := 0; i < len(args)-1; i++ {
 		if args[i] == k {
@@ -117,6 +119,7 @@ func runSetup(path string, args []string) error {
 	}
 	return nil
 }
+
 func runServe(path string) error {
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -124,12 +127,18 @@ func runServe(path string) error {
 	}
 	return service.New(cfg, logging.New(cfg.Logging.Level, cfg.Logging.Format)).Run(context.Background())
 }
+
 func runStatus(path string, args []string) error {
 	cfg, err := config.Load(path)
 	if err != nil {
 		return err
 	}
-	resp, err := http.Get("http://" + cfg.AdminAddress + "/admin/status")
+	req, err := http.NewRequest(http.MethodGet, "http://"+cfg.AdminAddress+"/admin/status", nil)
+	if err != nil {
+		return err
+	}
+	setAdminAuth(req, cfg)
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
 	if err != nil {
 		fmt.Println("daemon: not running")
 		return nil
@@ -140,10 +149,14 @@ func runStatus(path string, args []string) error {
 		fmt.Println(string(b))
 		return nil
 	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return errors.New("admin API unauthorized")
+	}
 	fmt.Println("daemon: running")
 	fmt.Println(string(b))
 	return nil
 }
+
 func runList(path string) error {
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -154,6 +167,7 @@ func runList(path string) error {
 	}
 	return nil
 }
+
 func runAdd(path string, args []string) error {
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -170,15 +184,22 @@ func runAdd(path string, args []string) error {
 	}
 	id := strings.ToLower(strings.ReplaceAll(name, " ", "-")) + "-" + fmt.Sprintf("%d", time.Now().Unix()%100000)
 	ref := "upstream_" + id
-	store, _ := storage.NewSecretStore()
-	_ = store.Put(ref, key)
+	store, err := storage.NewSecretStore()
+	if err != nil {
+		return err
+	}
+	if err := store.Put(ref, key); err != nil {
+		return err
+	}
 	cfg.Upstreams = append(cfg.Upstreams, config.UpstreamConfig{ID: id, Name: name, Type: "ollama_cloud", BaseURL: "https://ollama.com", SecretRef: ref, Enabled: true})
 	if err := config.Save(path, cfg); err != nil {
 		return err
 	}
+	reportDaemonSync(syncUpstreamsToDaemon(cfg))
 	fmt.Println("added", name, "fingerprint", storage.Fingerprint(key))
 	return nil
 }
+
 func runRemove(path string, args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: osb remove <id-or-name> [--yes]")
@@ -189,7 +210,10 @@ func runRemove(path string, args []string) error {
 		return err
 	}
 	out := make([]config.UpstreamConfig, 0, len(cfg.Upstreams))
-	store, _ := storage.NewSecretStore()
+	store, err := storage.NewSecretStore()
+	if err != nil {
+		return err
+	}
 	for _, u := range cfg.Upstreams {
 		if u.ID == target || u.Name == target {
 			_ = store.Delete(u.SecretRef)
@@ -198,9 +222,30 @@ func runRemove(path string, args []string) error {
 		out = append(out, u)
 	}
 	cfg.Upstreams = out
-	return config.Save(path, cfg)
+	if err := config.Save(path, cfg); err != nil {
+		return err
+	}
+	reportDaemonSync(syncUpstreamsToDaemon(cfg))
+	return nil
 }
-func runDoctor() error {
+
+func runReload(path string) error {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+	if err := syncUpstreamsToDaemon(cfg); err != nil {
+		return err
+	}
+	fmt.Println("Reloaded upstreams")
+	return nil
+}
+
+func runDoctor(path string) error {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
 	fmt.Println("os:", platform.Name())
 	if _, err := exec.LookPath("ollama"); err != nil {
 		fmt.Println("ollama: not in PATH")
@@ -208,13 +253,14 @@ func runDoctor() error {
 		fmt.Println("ollama: found")
 	}
 	c := http.Client{Timeout: 2 * time.Second}
-	if _, err := c.Get("http://127.0.0.1:11434/health"); err != nil {
-		fmt.Println("11434: unavailable")
+	if _, err := c.Get("http://" + cfg.ListenAddress + "/health"); err != nil {
+		fmt.Println(cfg.ListenAddress + ": unavailable")
 	} else {
-		fmt.Println("11434: reachable")
+		fmt.Println(cfg.ListenAddress + ": reachable")
 	}
 	return nil
 }
+
 func runChat(path string, args []string) error {
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -230,7 +276,7 @@ func runChat(path string, args []string) error {
 	}
 	payload := map[string]any{"model": model, "stream": false, "messages": []map[string]string{{"role": "user", "content": msg}}}
 	b, _ := json.Marshal(payload)
-	resp, err := http.Post("http://"+cfg.ListenAddress+"/api/chat", "application/json", strings.NewReader(string(b)))
+	resp, err := http.Post("http://"+cfg.ListenAddress+"/api/chat", "application/json", bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
@@ -239,6 +285,7 @@ func runChat(path string, args []string) error {
 	fmt.Println(string(rb))
 	return nil
 }
+
 func runUninstall(path string, args []string) error {
 	if has(args, "--purge-config") {
 		_ = os.Remove(path)
@@ -247,6 +294,46 @@ func runUninstall(path string, args []string) error {
 	fmt.Println("restore OLLAMA_HOST to 127.0.0.1:11434 manually or from backup")
 	return nil
 }
+
+func syncUpstreamsToDaemon(cfg config.Config) error {
+	payload := map[string]any{"upstreams": cfg.Upstreams}
+	b, _ := json.Marshal(payload)
+	req, err := http.NewRequest(http.MethodPost, "http://"+cfg.AdminAddress+"/admin/upstreams", bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	setAdminAuth(req, cfg)
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("daemon sync failed: %s", resp.Status)
+	}
+	return nil
+}
+
+func setAdminAuth(req *http.Request, cfg config.Config) {
+	if !cfg.Security.AdminTokenRequired {
+		return
+	}
+	token := strings.TrimSpace(cfg.Security.AdminToken)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("OSB_ADMIN_TOKEN"))
+	}
+	if token != "" {
+		req.Header.Set("X-OSB-Admin-Token", token)
+	}
+}
+
+func reportDaemonSync(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "daemon sync skipped:", err)
+	}
+}
+
 func execDetached(bin string, args ...string) error {
 	cmd := exec.Command(bin, args...)
 	cmd.Stdout = os.Stdout

@@ -16,6 +16,9 @@ type Policy struct {
 }
 
 func Backoff(p Policy, attempt int) time.Duration {
+	if p.Base <= 0 || p.Max <= 0 {
+		return 0
+	}
 	if attempt <= 0 {
 		attempt = 1
 	}
@@ -23,7 +26,11 @@ func Backoff(p Policy, attempt int) time.Duration {
 	if d > p.Max {
 		d = p.Max
 	}
-	j := time.Duration(rand.Int63n(int64(d / 4)))
+	jitterMax := int64(d / 4)
+	if jitterMax <= 0 {
+		return d
+	}
+	j := time.Duration(rand.Int63n(jitterMax))
 	return d + j
 }
 

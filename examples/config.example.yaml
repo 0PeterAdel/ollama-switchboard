@@ -7,10 +7,22 @@ routing:
   policy: auto
   stream_mode: safe
   cloud_suffix: [":cloud"]
+  local_regex: ["^(llama|qwen|mistral|gemma)"]
+  cloud_regex: []
 retry:
   max_attempts: 3
   attempt_timeout: 60s
   backoff_base: 300ms
   backoff_max: 3s
   cooldown_duration: 45s
+logging:
+  level: info
+  format: json
+  file: ""
+  max_size_mb: 20
+  max_backups: 5
+security:
+  admin_token_required: false
+  admin_token: ""
 upstreams: []
+model_map: {}
