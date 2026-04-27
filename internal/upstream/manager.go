@@ -38,15 +38,7 @@ type Manager struct {
 }
 
 func NewManager(cfg config.Config) *Manager {
-	u := make([]*RuntimeUpstream, 0, len(cfg.Upstreams))
-	for _, c := range cfg.Upstreams {
-		state := Healthy
-		if !c.Enabled {
-			state = Disabled
-		}
-		u = append(u, &RuntimeUpstream{Config: c, State: state})
-	}
-	return &Manager{upstreams: u}
+	return &Manager{upstreams: buildRuntimeUpstreams(cfg.Upstreams)}
 }
 
 func (m *Manager) Snapshot() []RuntimeUpstream {
@@ -57,6 +49,15 @@ func (m *Manager) Snapshot() []RuntimeUpstream {
 		out = append(out, *u)
 	}
 	return out
+}
+
+func (m *Manager) Replace(cfgs []config.UpstreamConfig) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.upstreams = buildRuntimeUpstreams(cfgs)
+	if len(m.upstreams) == 0 || m.rr >= len(m.upstreams) {
+		m.rr = 0
+	}
 }
 
 func (m *Manager) MarkResult(id string, errType string, cooldown time.Duration) {
@@ -125,4 +126,16 @@ func (m *Manager) FindByNameOrID(s string) *RuntimeUpstream {
 		}
 	}
 	return nil
+}
+
+func buildRuntimeUpstreams(cfgs []config.UpstreamConfig) []*RuntimeUpstream {
+	out := make([]*RuntimeUpstream, 0, len(cfgs))
+	for _, c := range cfgs {
+		state := Healthy
+		if !c.Enabled {
+			state = Disabled
+		}
+		out = append(out, &RuntimeUpstream{Config: c, State: state})
+	}
+	return out
 }

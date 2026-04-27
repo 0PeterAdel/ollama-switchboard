@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
@@ -21,16 +22,20 @@ import (
 )
 
 type Server struct {
-	cfg     config.Config
-	log     *slog.Logger
-	client  *http.Client
-	mgr     *upstream.Manager
-	tracker *health.Tracker
-	secrets map[string]string
+	cfg       config.Config
+	log       *slog.Logger
+	client    *http.Client
+	mgr       *upstream.Manager
+	tracker   *health.Tracker
+	secrets   map[string]string
+	secretsMu sync.RWMutex
 }
 
 func New(cfg config.Config, log *slog.Logger, mgr *upstream.Manager, tracker *health.Tracker, secrets map[string]string) *Server {
-	return &Server{cfg: cfg, log: log, mgr: mgr, tracker: tracker, secrets: secrets, client: &http.Client{Timeout: cfg.Retry.AttemptTimeout}}
+	if secrets == nil {
+		secrets = map[string]string{}
+	}
+	return &Server{cfg: cfg, log: log, mgr: mgr, tracker: tracker, secrets: secrets, client: &http.Client{Timeout: cfg.Retry.AttemptTimeout.Std()}}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -62,21 +67,37 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		s.tracker.IncNonStreaming()
 	}
 
-	if decision.Target == "local" {
-		s.tracker.IncLocal()
-		if err := s.forwardSingle(w, captured, s.cfg.LocalUpstream, "", stream); err != nil {
-			http.Error(w, "local upstream unavailable", http.StatusBadGateway)
+	var lastErr error
+	targets := decision.Targets()
+	for i, target := range targets {
+		if i > 0 {
+			s.tracker.IncFailover()
 		}
+		switch target {
+		case router.TargetLocal:
+			s.tracker.IncLocal()
+			lastErr = s.forwardSingle(w, captured, s.cfg.LocalUpstream, "", stream)
+		case router.TargetCloud:
+			s.tracker.IncCloud()
+			lastErr = s.forwardCloudWithFailover(w, captured, stream)
+		default:
+			lastErr = fmt.Errorf("unknown target %q", target)
+		}
+		if lastErr == nil {
+			return
+		}
+		s.log.Debug("target failed", "target", target, "error", lastErr)
+	}
+
+	if decision.Target == router.TargetLocal {
+		http.Error(w, "local upstream unavailable", http.StatusBadGateway)
 		return
 	}
-	s.tracker.IncCloud()
-	if err := s.forwardCloudWithFailover(w, captured, stream); err != nil {
-		http.Error(w, "all upstreams unavailable", http.StatusBadGateway)
-	}
+	http.Error(w, "all upstreams unavailable", http.StatusBadGateway)
 }
 
 func (s *Server) forwardCloudWithFailover(w http.ResponseWriter, c replay.CapturedRequest, stream bool) error {
-	policy := retry.Policy{MaxAttempts: s.cfg.Retry.MaxAttempts, Base: s.cfg.Retry.BackoffBase, Max: s.cfg.Retry.BackoffMax}
+	policy := retry.Policy{MaxAttempts: s.cfg.Retry.MaxAttempts, Base: s.cfg.Retry.BackoffBase.Std(), Max: s.cfg.Retry.BackoffMax.Std()}
 	attempted := map[string]bool{}
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
 		u, err := s.mgr.NextEligible()
@@ -87,18 +108,18 @@ func (s *Server) forwardCloudWithFailover(w http.ResponseWriter, c replay.Captur
 			continue
 		}
 		attempted[u.Config.ID] = true
-		auth := s.secrets[u.Config.SecretRef]
+		auth := s.secretFor(u.Config.SecretRef)
 		if auth == "" {
-			s.mgr.MarkResult(u.Config.ID, "auth_invalid", s.cfg.Retry.CooldownDuration)
+			s.mgr.MarkResult(u.Config.ID, "auth_invalid", s.cfg.Retry.CooldownDuration.Std())
 			continue
 		}
 		err = s.forwardSingle(w, c, u.Config.BaseURL, auth, stream)
 		if err == nil {
-			s.mgr.MarkResult(u.Config.ID, "", s.cfg.Retry.CooldownDuration)
+			s.mgr.MarkResult(u.Config.ID, "", s.cfg.Retry.CooldownDuration.Std())
 			return nil
 		}
 		typ := err.Error()
-		s.mgr.MarkResult(u.Config.ID, typ, s.cfg.Retry.CooldownDuration)
+		s.mgr.MarkResult(u.Config.ID, typ, s.cfg.Retry.CooldownDuration.Std())
 		s.tracker.IncFailover()
 		time.Sleep(retry.Backoff(policy, attempt))
 	}
@@ -124,7 +145,7 @@ func (s *Server) forwardSingle(w http.ResponseWriter, c replay.CapturedRequest, 
 	}
 	defer resp.Body.Close()
 	if retriable {
-		if resp.StatusCode == 429 {
+		if resp.StatusCode == http.StatusTooManyRequests {
 			b, _ := io.ReadAll(resp.Body)
 			if strings.Contains(strings.ToLower(string(b)), "quota") {
 				return fmt.Errorf("quota_exhausted")
@@ -145,7 +166,27 @@ func (s *Server) forwardSingle(w http.ResponseWriter, c replay.CapturedRequest, 
 	return err
 }
 
-func MarshalJSON(v any) []byte { b, _ := json.Marshal(v); return b }
+func (s *Server) secretFor(ref string) string {
+	s.secretsMu.RLock()
+	value := s.secrets[ref]
+	s.secretsMu.RUnlock()
+	if value != "" {
+		return value
+	}
+	fresh := LoadSecrets()
+	s.secretsMu.Lock()
+	for k, v := range fresh {
+		s.secrets[k] = v
+	}
+	value = s.secrets[ref]
+	s.secretsMu.Unlock()
+	return value
+}
+
+func MarshalJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
 
 func LoadSecrets() map[string]string {
 	store, err := storage.NewSecretStore()

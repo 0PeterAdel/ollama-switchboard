@@ -33,11 +33,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 	adminAPI := (&admin.API{Cfg: r.cfg, Tracker: r.tracker, Mgr: r.mgr}).Handler()
 
 	proxySrv := &http.Server{Addr: r.cfg.ListenAddress, Handler: p.Handler()}
-	adminMux := http.NewServeMux()
-	adminMux.Handle("/", adminAPI)
-	adminSrv := &http.Server{Addr: r.cfg.AdminAddress, Handler: adminMux}
-
-	uiSrv := &http.Server{Addr: r.cfg.UIAddress, Handler: ui.Handler()}
+	adminSrv := &http.Server{Addr: r.cfg.AdminAddress, Handler: adminAPI}
+	uiSrv := &http.Server{Addr: r.cfg.UIAddress, Handler: ui.Handler(r.cfg.ListenAddress)}
 
 	errCh := make(chan error, 3)
 	go func() { errCh <- proxySrv.ListenAndServe() }()
