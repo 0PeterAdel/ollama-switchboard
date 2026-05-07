@@ -9,12 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/admin"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/health"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/proxy"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/ui"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/upstream"
+	"github.com/0PeterAdel/ollama-switchboard/internal/admin"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/health"
+	"github.com/0PeterAdel/ollama-switchboard/internal/proxy"
+	"github.com/0PeterAdel/ollama-switchboard/internal/ui"
+	"github.com/0PeterAdel/ollama-switchboard/internal/upstream"
 )
 
 type Runtime struct {

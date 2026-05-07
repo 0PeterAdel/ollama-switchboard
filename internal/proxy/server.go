@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/health"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/replay"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/retry"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/router"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/storage"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/upstream"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/health"
+	"github.com/0PeterAdel/ollama-switchboard/internal/replay"
+	"github.com/0PeterAdel/ollama-switchboard/internal/retry"
+	"github.com/0PeterAdel/ollama-switchboard/internal/router"
+	"github.com/0PeterAdel/ollama-switchboard/internal/storage"
+	"github.com/0PeterAdel/ollama-switchboard/internal/upstream"
 )
 
 type Server struct {

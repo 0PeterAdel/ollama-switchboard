@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
 )
 
 const (

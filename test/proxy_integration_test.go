@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/health"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/proxy"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/upstream"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/health"
+	"github.com/0PeterAdel/ollama-switchboard/internal/proxy"
+	"github.com/0PeterAdel/ollama-switchboard/internal/upstream"
 )
 
 func TestProxyForwardsLocal(t *testing.T) {

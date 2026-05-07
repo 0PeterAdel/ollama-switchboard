@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
 )
 
 type Options struct {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/cli"
+	"github.com/0PeterAdel/ollama-switchboard/internal/cli"
 )
 
 func main() {

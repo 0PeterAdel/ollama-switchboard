@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/logging"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/platform"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/service"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/setup"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/storage"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/version"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/logging"
+	"github.com/0PeterAdel/ollama-switchboard/internal/platform"
+	"github.com/0PeterAdel/ollama-switchboard/internal/service"
+	"github.com/0PeterAdel/ollama-switchboard/internal/setup"
+	"github.com/0PeterAdel/ollama-switchboard/internal/storage"
+	"github.com/0PeterAdel/ollama-switchboard/internal/version"
 )
 
 func Run(args []string) error {

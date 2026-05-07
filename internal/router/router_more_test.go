@@ -3,7 +3,7 @@ package router
 import (
 	"testing"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
 )
 
 func TestDecideLocalRegex(t *testing.T) {

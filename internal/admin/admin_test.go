@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ollama-switchboard/ollama-switchboard/internal/config"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/health"
-	"github.com/ollama-switchboard/ollama-switchboard/internal/upstream"
+	"github.com/0PeterAdel/ollama-switchboard/internal/config"
+	"github.com/0PeterAdel/ollama-switchboard/internal/health"
+	"github.com/0PeterAdel/ollama-switchboard/internal/upstream"
 )
 
 func TestAdminTokenProtection(t *testing.T) {
