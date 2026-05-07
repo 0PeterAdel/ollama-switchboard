@@ -112,7 +112,7 @@ Policy behavior:
 Install:
 
 ```bash
-go install github.com/ollama-switchboard/ollama-switchboard/cmd/osb@latest
+go install github.com/0PeterAdel/ollama-switchboard/cmd/osb@latest
 ```
 
 Create config:
