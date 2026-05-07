@@ -1,4 +1,4 @@
-module github.com/ollama-switchboard/ollama-switchboard
+module github.com/0PeterAdel/ollama-switchboard
 
 go 1.23
 
